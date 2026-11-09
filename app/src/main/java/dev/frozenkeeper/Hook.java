@@ -239,8 +239,9 @@ public final class Hook implements IXposedHookLoadPackage {
         Context context = context();
         if (context == null) return 0L;
         try {
+            if (UserHandle.myUserHandle().getIdentifier() != 0) return -1L;
             UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
-            if (um != null) return um.getSerialNumberForUser(UserHandle.of(0));
+            if (um != null) return um.getSerialNumberForUser(UserHandle.myUserHandle());
         } catch (Throwable ignored) {
         }
         return 0L;
