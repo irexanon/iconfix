@@ -2,5 +2,6 @@
 <resources>
     <string-array name="xposed_scope">
         <item>com.android.launcher</item>
+        <item>dev.frozenkeeper</item>
     </string-array>
 </resources>

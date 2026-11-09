@@ -19,6 +19,7 @@ import java.util.Set;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
@@ -45,6 +46,13 @@ public final class Hook implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(LoadPackageParam lp) {
+        if ("dev.frozenkeeper".equals(lp.packageName)) {
+            try {
+                XposedHelpers.findAndHookMethod("dev.frozenkeeper.DiagnosticActivity",
+                        lp.classLoader, "isModuleActive", XC_MethodReplacement.returnConstant(true));
+            } catch (Throwable t) { log(t); }
+            return;
+        }
         if (!LAUNCHER_PACKAGE.equals(lp.packageName)) return;
         if (lp.processName != null && !LAUNCHER_PACKAGE.equals(lp.processName)) return;
         if (attached) return;

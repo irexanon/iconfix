@@ -45,10 +45,8 @@ public final class DiagnosticActivity extends Activity {
         root.addView(statusView, new LinearLayout.LayoutParams(-1, -2));
 
         TextView instructions = text(
-                "Scope: com.android.launcher only\n"
-                        + "1. Clear log below.  2. Restart Launcher.  3. Freeze one app in Ice Box.\n"
-                        + "4. Unfreeze it.  5. Tap Refresh and copy the complete log.",
-                14, Color.LTGRAY);
+                "Scope: System Launcher + Frozen Icon Keeper (dono tick). Phir launcher force stop, Refresh.",
+                13, Color.LTGRAY);
         root.addView(instructions, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout buttons = new LinearLayout(this);
@@ -83,18 +81,51 @@ public final class DiagnosticActivity extends Activity {
             String output = readLogs();
             runOnUiThread(() -> {
                 logView.setText(output);
-                statusView.setText(output.contains("FrozenIconKeeper")
-                        ? "Hook messages found. Check attached / skipped / saved / restored lines."
-                        : "No FrozenIconKeeper messages found. Confirm LSPosed scope and restart Launcher.");
+                showStatus(output);
             });
         }, "FrozenIconKeeper-log-reader").start();
+    }
+
+    /** LSPosed hooks this to return true (needs this app ticked in its own scope). */
+    public boolean isModuleActive() { return false; }
+
+    private void showStatus(String log) {
+        boolean lsp = isModuleActive();
+        boolean attached = log.contains("attached to com.android.launcher");
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("hooked ([A-Za-z.]+): (\\d+)").matcher(log);
+        StringBuilder hooks = new StringBuilder();
+        boolean zero = false;
+        int found = 0;
+        while (m.find()) {
+            found++;
+            if ("0".equals(m.group(2))) zero = true;
+            hooks.append("\n    ").append("0".equals(m.group(2)) ? "✗ " : "✓ ")
+                    .append(m.group(1)).append(" = ").append(m.group(2));
+        }
+        int saved = count(log, "saved"), restored = count(log, "restored:");
+        StringBuilder b = new StringBuilder();
+        b.append(lsp ? "✅ LSPosed: ACTIVE\n" : "❌ LSPosed: NOT ACTIVE (module off, ya LSPosed scope mein 'Frozen Icon Keeper' khud tick nahi)\n");
+        b.append(attached ? "✅ Launcher: HOOKED\n" : "❌ Launcher: NOT hooked (scope mein System Launcher tick karo, phir launcher force stop)\n");
+        b.append(found == 0 ? "❌ Hooks: none" : (zero ? "⚠ Hooks: kuch method nahi mile" : "✅ Hooks: OK")).append(hooks).append('\n');
+        b.append("Saved: ").append(saved).append("   Restored: ").append(restored);
+        boolean ok = lsp && attached && found > 0 && !zero;
+        statusView.setTextColor(ok ? Color.rgb(120, 230, 120) : Color.rgb(255, 120, 120));
+        statusView.setTextSize(17);
+        statusView.setText(b.toString());
+    }
+
+    private static int count(String s, String needle) {
+        int n = 0, i = 0;
+        while ((i = s.indexOf(needle, i)) >= 0) { n++; i += needle.length(); }
+        return n;
     }
 
     private String readLogs() {
         StringBuilder result = new StringBuilder();
         try {
-            Process p = new ProcessBuilder("logcat", "-d", "-v", "time",
-                    "-s", "FrozenIconKeeper:D", "XposedBridge:D", "*:S")
+            Process p = new ProcessBuilder("su", "-c",
+                    "logcat -d -v time -s FrozenIconKeeper:D XposedBridge:D LSPosed-Bridge:D")
                     .redirectErrorStream(true).start();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                 String line;
@@ -107,7 +138,7 @@ public final class DiagnosticActivity extends Activity {
             p.waitFor();
         } catch (Throwable t) {
             result.append("Cannot read Logcat: ").append(t).append('\n')
-                    .append("Use: adb logcat -d -v time -s FrozenIconKeeper:D XposedBridge:D\n");
+                    .append("Root (su) permission do.\n");
         }
         if (result.length() == 0) {
             return "No matching messages.\n\nExpected after launcher restart:\n"
@@ -123,7 +154,7 @@ public final class DiagnosticActivity extends Activity {
 
     private void clearLogs() {
         try {
-            new ProcessBuilder("logcat", "-c").start().waitFor();
+            new ProcessBuilder("su", "-c", "logcat -c").start().waitFor();
             logView.setText("Logcat cleared. Restart Launcher, run the freeze/unfreeze test, then tap Refresh.\n");
             statusView.setText("Logcat cleared.");
         } catch (Throwable t) {
