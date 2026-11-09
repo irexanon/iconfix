@@ -8,8 +8,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.UserHandle;
-import android.os.UserManager;
 import android.util.Base64;
 
 import org.json.JSONArray;
@@ -236,14 +234,8 @@ public final class Hook implements IXposedHookLoadPackage {
     }
 
     private static long mainProfileSerial() {
-        Context context = context();
-        if (context == null) return 0L;
-        try {
-            if (UserHandle.myUserHandle().getIdentifier() != 0) return -1L;
-            UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
-            if (um != null) return um.getSerialNumberForUser(UserHandle.myUserHandle());
-        } catch (Throwable ignored) {
-        }
+        // Android assigns the owner/main profile serial 0. The task-level user check
+        // above prevents this module from handling secondary users or work profiles.
         return 0L;
     }
 
