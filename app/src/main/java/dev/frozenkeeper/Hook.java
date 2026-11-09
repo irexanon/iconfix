@@ -8,6 +8,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.util.Log;
 import android.util.Base64;
 
 import org.json.JSONArray;
@@ -31,6 +32,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
  */
 public final class Hook implements IXposedHookLoadPackage {
     private static final String TAG = "[FrozenIconKeeper] ";
+    private static final String LOG_TAG = "FrozenIconKeeper";
     private static final String PREFS = "frozen_icon_keeper";
     private static final String MODEL_PACKAGE = "com.android.launcher3.model.";
     private static final String LAUNCHER_PACKAGE = "com.android.launcher";
@@ -65,9 +67,15 @@ public final class Hook implements IXposedHookLoadPackage {
                         protected void beforeHookedMethod(MethodHookParam param) {
                             try {
                                 Object task = param.thisObject;
-                                if (!isPackageTask(task) || taskUserId(task) != 0) return;
+                                if (!isPackageTask(task) || taskUserId(task) != 0) {
+                                    log("delete hook skipped: non-package task or non-owner user");
+                                    return;
+                                }
                                 for (String pkg : packagesOf(task)) {
-                                    if (isFrozen(pkg)) snapshotFromProvider(pkg);
+                                    int op = operation(task);
+                                    boolean frozen = isFrozen(pkg);
+                                    log("delete path pkg=" + pkg + " op=" + op + " frozen=" + frozen);
+                                    if (frozen) snapshotFromProvider(pkg);
                                 }
                             } catch (Throwable t) {
                                 log(t);
@@ -92,12 +100,21 @@ public final class Hook implements IXposedHookLoadPackage {
                                 if (param.args.length == 0 || !(param.args[0] instanceof String)) return;
                                 Object receiver = param.thisObject;
                                 Object user = XposedHelpers.getObjectField(receiver, "user");
-                                if (userId(user) != 0) return;
+                                if (userId(user) != 0) {
+                                    log("loader markDeleted skipped: user=" + userId(user));
+                                    return;
+                                }
                                 String reason = (String) param.args[0];
-                                if (!isPackageInvalidationReason(reason)) return;
+                                if (!isPackageInvalidationReason(reason)) {
+                                    log("loader markDeleted ignored reason=" + reason);
+                                    return;
+                                }
                                 Cursor cursor = (Cursor) receiver;
                                 String pkg = packageOfRow(cursor);
-                                if (pkg == null || !isMainProfileRow(cursor) || !isFrozen(pkg)) return;
+                                if (pkg == null || !isMainProfileRow(cursor) || !isFrozen(pkg)) {
+                                    log("loader row not saved pkg=" + pkg + " frozen=" + (pkg != null && isFrozen(pkg)));
+                                    return;
+                                }
                                 saveRow(pkg, rowToJson(cursor));
                                 log("saved from loader: " + pkg + " reason=" + reason);
                             } catch (Throwable t) {
@@ -117,10 +134,16 @@ public final class Hook implements IXposedHookLoadPackage {
             protected void afterHookedMethod(MethodHookParam param) {
                 try {
                     Object task = param.thisObject;
+                    int op = operation(task);
+                    log("task complete op=" + op + " user=" + taskUserId(task)
+                            + " packages=" + packagesOf(task).length);
                     if (!isRestoreEvent(task) || taskUserId(task) != 0) return;
                     boolean restored = false;
                     for (String pkg : packagesOf(task)) {
-                        if (!isFrozen(pkg) && hasSaved(pkg)) restored |= restore(pkg);
+                        boolean saved = hasSaved(pkg);
+                        boolean frozen = isFrozen(pkg);
+                        log("restore candidate pkg=" + pkg + " frozen=" + frozen + " saved=" + saved);
+                        if (!frozen && saved) restored |= restore(pkg);
                     }
                     if (restored) forceReload(task);
                 } catch (Throwable t) {
@@ -405,7 +428,8 @@ public final class Hook implements IXposedHookLoadPackage {
         } catch (Throwable t) {
             log(t);
         }
-        if (inserted) log("restored: " + pkg);
+        log("restore result pkg=" + pkg + " inserted=" + inserted
+                + " retryRows=" + remaining.length() + " transientFailure=" + transientFailure);
         return inserted;
     }
 
@@ -422,6 +446,13 @@ public final class Hook implements IXposedHookLoadPackage {
         } catch (Throwable t) { log(t); }
     }
 
-    private static void log(String message) { XposedBridge.log(TAG + message); }
-    private static void log(Throwable throwable) { XposedBridge.log(TAG + throwable); }
+    private static void log(String message) {
+        XposedBridge.log(TAG + message);
+        Log.i(LOG_TAG, message);
+    }
+
+    private static void log(Throwable throwable) {
+        XposedBridge.log(TAG + throwable);
+        Log.e(LOG_TAG, throwable.toString(), throwable);
+    }
 }

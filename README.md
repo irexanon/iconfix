@@ -22,7 +22,11 @@ The repository includes `.github/workflows/build.yml`. Push to GitHub, open **Ac
 
 ## Install and test
 
-Install the artifact APK, enable it in LSPosed, and scope it only to **System Launcher** (`com.android.launcher`). Restart the launcher process. Test a normal main-user app first: record its page/cell, freeze it with Ice Box root mode, confirm it disappears, unfreeze it, and confirm the original location returns. Then test a folder and a batch of apps. Do not test first with widgets or a work-profile app.
+Install the artifact APK, enable it in LSPosed, and scope it only to **System Launcher** (`com.android.launcher`). The app now has a **Frozen Icon Keeper — Diagnostics** screen. Open it, tap **Clear Logcat**, restart the launcher, freeze one normal main-user app with Ice Box root mode, unfreeze it, then tap **Refresh**. Use **Copy Logs** to copy the complete result.
+
+The useful sequence is: `attached` -> `hooked ...` -> `delete path` or `saved from loader` -> `task complete` -> `restore candidate` -> `restore result`. If `delete path` and `saved from loader` never appear, the launcher callback path is different on the device. If `saved` appears but no `restore candidate`, the unfreeze task operation is different. If `restore result inserted=true` appears but the icon is still misplaced, the launcher reload is overwriting the provider insert.
+
+Then test a folder and a batch of apps. Do not test first with widgets or a work-profile app.
 
 ## Logs and rollback
 
