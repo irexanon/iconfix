@@ -92,7 +92,7 @@ public final class DiagnosticActivity extends Activity {
     private void showStatus(String log) {
         if (log.startsWith("No matching messages")) log = "";
         boolean lsp = isModuleActive();
-        boolean attached = log.contains("attached to com.android.launcher");
+        boolean attached = log.contains("attached to com.android.launcher") || log.contains("task complete") || log.contains("restore candidate") || log.contains("delete path");
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("hooked ([A-Za-z.]+): (\\d+)").matcher(log);
         StringBuilder hooks = new StringBuilder();
@@ -108,9 +108,9 @@ public final class DiagnosticActivity extends Activity {
         StringBuilder b = new StringBuilder();
         b.append(lsp ? "✅ LSPosed: ACTIVE\n" : "❌ LSPosed: NOT ACTIVE (module off, ya LSPosed scope mein 'Frozen Icon Keeper' khud tick nahi)\n");
         b.append(attached ? "✅ Launcher: HOOKED\n" : "❌ Launcher: NOT hooked (scope mein System Launcher tick karo, phir launcher force stop)\n");
-        b.append(found == 0 ? "❌ Hooks: none" : (zero ? "⚠ Hooks: kuch method nahi mile" : "✅ Hooks: OK")).append(hooks).append('\n');
+        b.append(found == 0 ? (attached ? "✅ Hooks: running (events aa rahe hain)" : "❌ Hooks: none") : (zero ? "⚠ Hooks: kuch method nahi mile" : "✅ Hooks: OK")).append(hooks).append('\n');
         b.append("Saved: ").append(saved).append("   Restored: ").append(restored);
-        boolean ok = lsp && attached && found > 0 && !zero;
+        boolean ok = lsp && attached && !zero;
         statusView.setTextColor(ok ? Color.rgb(120, 230, 120) : Color.rgb(255, 120, 120));
         statusView.setTextSize(17);
         statusView.setText(b.toString());
