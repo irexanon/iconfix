@@ -92,7 +92,7 @@ public final class DiagnosticActivity extends Activity {
     private void showStatus(String log) {
         if (log.startsWith("No matching messages")) log = "";
         boolean lsp = isModuleActive();
-        boolean attached = log.contains("attached to com.android.launcher") || log.contains("task complete") || log.contains("restore candidate") || log.contains("delete path");
+        boolean attached = log.contains("attached to") || log.contains("task complete") || log.contains("restore candidate") || log.contains("delete path");
         java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("hooked ([A-Za-z.]+): (\\d+)").matcher(log);
         StringBuilder hooks = new StringBuilder();
@@ -126,12 +126,12 @@ public final class DiagnosticActivity extends Activity {
         StringBuilder result = new StringBuilder();
         try {
             Process p = new ProcessBuilder("su", "-c",
-                    "logcat -d -v time -s FrozenIconKeeper:D XposedBridge:D LSPosed-Bridge:D")
+                    "cat /data/data/com.android.launcher/files/fik.log 2>&1 | tail -150")
                     .redirectErrorStream(true).start();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    if (line.contains("FrozenIconKeeper") || line.contains("[FrozenIconKeeper]")) {
+                    if (line.length() > 0) {
                         result.append(line).append('\n');
                     }
                 }
@@ -155,7 +155,7 @@ public final class DiagnosticActivity extends Activity {
 
     private void clearLogs() {
         try {
-            new ProcessBuilder("su", "-c", "logcat -c").start().waitFor();
+            new ProcessBuilder("su", "-c", "logcat -c; rm -f /data/data/com.android.launcher/files/fik.log").start().waitFor();
             logView.setText("Logcat cleared. Restart Launcher, run the freeze/unfreeze test, then tap Refresh.\n");
             statusView.setText("Logcat cleared.");
         } catch (Throwable t) {

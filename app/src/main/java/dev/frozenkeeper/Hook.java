@@ -454,13 +454,30 @@ public final class Hook implements IXposedHookLoadPackage {
         } catch (Throwable t) { log(t); }
     }
 
+    private static final String LOG_FILE = "/data/data/com.android.launcher/files/fik.log";
+
+    private static synchronized void toFile(String line, boolean truncate) {
+        try {
+            java.io.File f = new java.io.File(LOG_FILE);
+            if (f.getParentFile() != null) f.getParentFile().mkdirs();
+            if (f.length() > 200 * 1024) truncate = true;
+            try (java.io.FileWriter w = new java.io.FileWriter(f, !truncate)) {
+                w.write(new java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
+                        .format(new java.util.Date()) + " " + line + "\n");
+            }
+            f.setReadable(true, false);
+        } catch (Throwable ignored) { }
+    }
+
     private static void log(String message) {
         XposedBridge.log(TAG + message);
         Log.i(LOG_TAG, message);
+        toFile(message, message.startsWith("attached"));
     }
 
     private static void log(Throwable throwable) {
         XposedBridge.log(TAG + throwable);
         Log.e(LOG_TAG, throwable.toString(), throwable);
+        toFile("ERROR " + throwable, false);
     }
 }
