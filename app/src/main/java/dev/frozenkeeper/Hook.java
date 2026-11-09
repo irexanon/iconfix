@@ -388,17 +388,34 @@ public final class Hook implements IXposedHookLoadPackage {
         prefs.edit().putString(pkg, updated.toString()).commit();
     }
 
+    private static String where(JSONObject r) {
+        return "id=" + r.optLong("_id", -1) + " c=" + r.optLong("container", 0)
+                + " s=" + r.optLong("screen", 0) + " x=" + r.optLong("cellX", 0)
+                + " y=" + r.optLong("cellY", 0) + " rank=" + r.optLong("rank", -1);
+    }
+
+    /** A fresh snapshot of the live DB rows REPLACES any older snapshot of this package. */
     private static void snapshotFromProvider(String pkg) throws Exception {
         Uri uri = favoritesUri();
         Context context = context();
         if (uri == null || context == null) return;
         ContentResolver resolver = context.getContentResolver();
+        JSONArray fresh = new JSONArray();
         try (Cursor cursor = resolver.query(uri, null, null, null, null)) {
             if (cursor == null) return;
             while (cursor.moveToNext()) {
                 if (!isMainProfileRow(cursor)) continue;
-                if (pkg.equals(packageOfRow(cursor))) saveRow(pkg, rowToJson(cursor));
+                if (pkg.equals(packageOfRow(cursor))) {
+                    JSONObject r = rowToJson(cursor);
+                    fresh.put(r);
+                    log("snapshot " + pkg + " " + where(r));
+                }
             }
+        }
+        if (fresh.length() > 0) {
+            preferences().edit().putString(pkg, fresh.toString()).commit();
+        } else {
+            log("snapshot " + pkg + ": no live row (keeping older snapshot if any)");
         }
     }
 
@@ -430,7 +447,11 @@ public final class Hook implements IXposedHookLoadPackage {
                 String intent = row.optString("intent", "");
                 String profile = String.valueOf(serial);
 
-                if (exists(resolver, uri, "intent=? AND profileId=?", intent, profile)) continue;
+                log("restore try " + pkg + " " + where(row));
+                if (exists(resolver, uri, "intent=? AND profileId=?", intent, profile)) {
+                    log("restore skip: row for this intent already exists (launcher re-added it)");
+                    continue;
+                }
                 if (id >= 0 && exists(resolver, uri, "_id=?", String.valueOf(id))) {
                     remaining.put(row);
                     transientFailure = true;
@@ -449,10 +470,10 @@ public final class Hook implements IXposedHookLoadPackage {
                         String.valueOf(container), cellX, cellY)
                         : exists(resolver, uri, "container=? AND screen=? AND cellX=? AND cellY=?",
                         String.valueOf(container), screen, cellX, cellY);
-                if (occupied) continue;
+                if (occupied) { log("restore skip: target cell occupied"); continue; }
 
                 try {
-                    if (resolver.insert(uri, values) != null) inserted = true;
+                    if (resolver.insert(uri, values) != null) { inserted = true; log("restore inserted " + pkg + " " + where(row)); }
                     else { remaining.put(row); transientFailure = true; }
                 } catch (Throwable insertFailure) {
                     remaining.put(row);
