@@ -90,6 +90,7 @@ public final class DiagnosticActivity extends Activity {
     public boolean isModuleActive() { return false; }
 
     private void showStatus(String log) {
+        if (log.startsWith("No matching messages")) log = "";
         boolean lsp = isModuleActive();
         boolean attached = log.contains("attached to com.android.launcher");
         java.util.regex.Matcher m = java.util.regex.Pattern
@@ -103,7 +104,7 @@ public final class DiagnosticActivity extends Activity {
             hooks.append("\n    ").append("0".equals(m.group(2)) ? "✗ " : "✓ ")
                     .append(m.group(1)).append(" = ").append(m.group(2));
         }
-        int saved = count(log, "saved"), restored = count(log, "restored:");
+        int saved = count(log, "saved: ") + count(log, "saved from loader"), restored = count(log, "restored:");
         StringBuilder b = new StringBuilder();
         b.append(lsp ? "✅ LSPosed: ACTIVE\n" : "❌ LSPosed: NOT ACTIVE (module off, ya LSPosed scope mein 'Frozen Icon Keeper' khud tick nahi)\n");
         b.append(attached ? "✅ Launcher: HOOKED\n" : "❌ Launcher: NOT hooked (scope mein System Launcher tick karo, phir launcher force stop)\n");
