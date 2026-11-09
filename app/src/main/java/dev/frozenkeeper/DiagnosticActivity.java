@@ -127,7 +127,7 @@ public final class DiagnosticActivity extends Activity {
         StringBuilder result = new StringBuilder();
         try {
             Process p = new ProcessBuilder("su", "-c",
-                    "cat /data/data/com.android.launcher/files/fik.log 2>&1 | tail -150")
+                    "F=/data/data/com.android.launcher/files/fik.log; nsenter --mount=/proc/1/ns/mnt -- cat $F 2>/dev/null || cat $F 2>&1 | tail -150")
                     .redirectErrorStream(true).start();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
                 String line;
@@ -156,7 +156,7 @@ public final class DiagnosticActivity extends Activity {
 
     private void clearLogs() {
         try {
-            new ProcessBuilder("su", "-c", "logcat -c; rm -f /data/data/com.android.launcher/files/fik.log").start().waitFor();
+            new ProcessBuilder("su", "-c", "logcat -c; nsenter --mount=/proc/1/ns/mnt -- rm -f /data/data/com.android.launcher/files/fik.log").start().waitFor();
             logView.setText("Logcat cleared. Restart Launcher, run the freeze/unfreeze test, then tap Refresh.\n");
             statusView.setText("Logcat cleared.");
         } catch (Throwable t) {
