@@ -232,12 +232,16 @@ public final class Hook implements IXposedHookLoadPackage {
 
     private static Context context() {
         try {
-            return (Context) XposedHelpers.callStaticMethod(
-                    XposedHelpers.findClass("de.robv.android.xposed.AndroidAppHelper", null),
-                    "currentApplication");
-        } catch (Throwable t) {
-            return null;
-        }
+            Object app = Class.forName("android.app.ActivityThread")
+                    .getMethod("currentApplication").invoke(null);
+            if (app instanceof Context) return (Context) app;
+        } catch (Throwable ignored) { }
+        try {
+            Object app = Class.forName("android.app.AndroidAppHelper")
+                    .getMethod("currentApplication").invoke(null);
+            if (app instanceof Context) return (Context) app;
+        } catch (Throwable ignored) { }
+        return null;
     }
 
     private static boolean isFrozen(String pkg) {
@@ -458,7 +462,8 @@ public final class Hook implements IXposedHookLoadPackage {
 
     private static synchronized void toFile(String line, boolean truncate) {
         try {
-            java.io.File f = new java.io.File(LOG_FILE);
+            Context cx = context();
+            java.io.File f = cx != null ? new java.io.File(cx.getFilesDir(), "fik.log") : new java.io.File(LOG_FILE);
             if (f.getParentFile() != null) f.getParentFile().mkdirs();
             if (f.length() > 200 * 1024) truncate = true;
             try (java.io.FileWriter w = new java.io.FileWriter(f, !truncate)) {

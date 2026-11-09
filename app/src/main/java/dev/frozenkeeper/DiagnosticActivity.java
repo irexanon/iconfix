@@ -91,6 +91,7 @@ public final class DiagnosticActivity extends Activity {
 
     private void showStatus(String log) {
         if (log.startsWith("No matching messages")) log = "";
+        if (log.contains("No such file")) { statusView.setTextColor(Color.rgb(255, 120, 120)); statusView.setText("❌ Hook log file nahi bani: naya APK install nahi hua, ya launcher abhi restart nahi hua. Install -> phone reboot -> Refresh."); return; }
         boolean lsp = isModuleActive();
         boolean attached = log.contains("attached to") || log.contains("task complete") || log.contains("restore candidate") || log.contains("delete path");
         java.util.regex.Matcher m = java.util.regex.Pattern
