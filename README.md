@@ -35,3 +35,7 @@ Search LSPosed logs for `FrozenIconKeeper`. To roll back, disable or uninstall t
 ## Limitations
 
 This source was not tested on a physical OxygenOS 15 phone in this environment. It intentionally handles only main-user shortcut rows, not widgets or work-profile rows. It relies on the exact class and provider names from the supplied `com.android.launcher` 15.8.21 APK; a different launcher build may require new signatures or provider checks.
+
+## Supported freezers / hiders
+- Ice Box and any app that disables packages (setApplicationEnabledSetting DISABLED*).
+- Zorken and any app that hides packages (setApplicationHiddenSettingAsUser). Hide = launcher sees PACKAGE_REMOVED, show = PACKAGE_ADDED.

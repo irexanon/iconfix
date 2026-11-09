@@ -37,6 +37,7 @@ public final class Hook implements IXposedHookLoadPackage {
     private static final String PREFS = "frozen_icon_keeper";
     private static final String MODEL_PACKAGE = "com.android.launcher3.model.";
     private static final String LAUNCHER_PACKAGE = "com.android.launcher";
+    private static final int OP_ADD = 1;
     private static final int OP_UPDATE = 2;
     private static final int OP_UNAVAILABLE = 4;
     private static final int OP_SUSPEND = 5;
@@ -194,7 +195,7 @@ public final class Hook implements IXposedHookLoadPackage {
     private static boolean isRestoreEvent(Object task) {
         if (!isPackageTask(task)) return false;
         int op = operation(task);
-        return op == OP_UPDATE || op == OP_UNSUSPEND;
+        return op == OP_ADD || op == OP_UPDATE || op == OP_UNSUSPEND;
     }
 
     private static int operation(Object task) {
@@ -244,7 +245,8 @@ public final class Hook implements IXposedHookLoadPackage {
         return null;
     }
 
-    private static boolean isFrozen(String pkg) {
+    /** disabled by a freezer (Ice Box etc.) */
+    private static boolean isDisabled(String pkg) {
         Context context = context();
         if (context == null || pkg == null || pkg.isEmpty()) return false;
         try {
@@ -255,6 +257,33 @@ public final class Hook implements IXposedHookLoadPackage {
         } catch (Throwable t) {
             return false;
         }
+    }
+
+    /**
+     * Hidden for user 0 via setApplicationHiddenSettingAsUser (Zorken etc.): the package
+     * still exists when MATCH_UNINSTALLED_PACKAGES is used, but not for normal queries.
+     * A real uninstall removes the package completely, so both lookups fail -> false.
+     */
+    private static boolean isHidden(String pkg) {
+        Context context = context();
+        if (context == null || pkg == null || pkg.isEmpty()) return false;
+        PackageManager pm = context.getPackageManager();
+        try {
+            pm.getApplicationInfo(pkg, 0x00002000); // MATCH_UNINSTALLED_PACKAGES
+        } catch (Throwable t) {
+            return false;
+        }
+        try {
+            pm.getApplicationInfo(pkg, 0);
+            return false;
+        } catch (Throwable t) {
+            return true;
+        }
+    }
+
+    /** package is currently kept away from the launcher by a freezer or a hider */
+    private static boolean isFrozen(String pkg) {
+        return isDisabled(pkg) || isHidden(pkg);
     }
 
     private static Uri favoritesUri() {
