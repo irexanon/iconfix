@@ -427,6 +427,39 @@ public final class Hook implements IXposedHookLoadPackage {
         }
     }
 
+    private static void placeInFolder(ContentResolver resolver, Uri uri, long folder,
+                                      JSONObject row, ContentValues values) {
+        long savedX = row.optLong("cellX", 0), savedY = row.optLong("cellY", 0);
+        long savedRank = row.optLong("rank", 0);
+        int count = 0;
+        long maxRank = -1, maxX = 0;
+        boolean slotTaken = false;
+        java.util.HashSet<String> used = new java.util.HashSet<>();
+        try (Cursor cur = resolver.query(uri, new String[]{"cellX", "cellY", "rank"},
+                "container=?", new String[]{String.valueOf(folder)}, null)) {
+            while (cur != null && cur.moveToNext()) {
+                count++;
+                long x = cur.getLong(0), y = cur.getLong(1), r = cur.getLong(2);
+                used.add(x + "," + y);
+                if (r > maxRank) maxRank = r;
+                if (x > maxX) maxX = x;
+                if (r == savedRank) slotTaken = true;
+            }
+        } catch (Throwable t) { log(t); }
+        if (!slotTaken && !used.contains(savedX + "," + savedY)) {
+            log("restore folder slot free: keep saved slot");
+            return;
+        }
+        long cols = Math.max(3, Math.max(maxX + 1, savedX + 1));
+        long pos = count;
+        while (used.contains((pos % cols) + "," + (pos / cols))) pos++;
+        values.put("cellX", pos % cols);
+        values.put("cellY", pos / cols);
+        values.put("rank", Math.max(maxRank + 1, 0));
+        log("restore folder " + folder + ": slot taken, appending at x=" + (pos % cols)
+                + " y=" + (pos / cols) + " rank=" + Math.max(maxRank + 1, 0));
+    }
+
     private static boolean restore(String pkg) {
         boolean inserted = false;
         boolean transientFailure = false;
@@ -463,14 +496,21 @@ public final class Hook implements IXposedHookLoadPackage {
                 String cellY = String.valueOf(row.optLong("cellY", 0L));
                 String screen = String.valueOf(row.optLong("screen", 0L));
                 if (container > 0 && !exists(resolver, uri,
-                        "_id=? AND itemType=2", String.valueOf(container))) continue;
+                        "_id=? AND itemType=2", String.valueOf(container))) {
+                    log("restore skip: folder " + container + " no longer exists (launcher dissolved it)");
+                    continue;
+                }
 
-                boolean occupied = container > 0
-                        ? exists(resolver, uri, "container=? AND cellX=? AND cellY=?",
-                        String.valueOf(container), cellX, cellY)
-                        : exists(resolver, uri, "container=? AND screen=? AND cellX=? AND cellY=?",
-                        String.valueOf(container), screen, cellX, cellY);
-                if (occupied) { log("restore skip: target cell occupied"); continue; }
+                if (container > 0) {
+                    // Folder: launcher renumbers siblings after a removal, so the old cell is
+                    // usually "taken". Keep the saved slot if free, otherwise append at the end.
+                    placeInFolder(resolver, uri, container, row, values);
+                } else {
+                    boolean occupied = exists(resolver, uri,
+                            "container=? AND screen=? AND cellX=? AND cellY=?",
+                            String.valueOf(container), screen, cellX, cellY);
+                    if (occupied) { log("restore skip: target cell occupied"); continue; }
+                }
 
                 try {
                     if (resolver.insert(uri, values) != null) { inserted = true; log("restore inserted " + pkg + " " + where(row)); }
